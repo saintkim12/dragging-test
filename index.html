@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link href="https://cdn.jsdelivr.net/npm/siiimple-toast/dist/style.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/siiimple-toast/dist/siiimple-toast.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+    }
+
+    div.rect {
+      width: 200px;
+      height: 200px;
+      border: 1px dotted black;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" v-scope="App()" :style="store.appStyle" @vue:mounted="mounted">
+    <div v-for="i in 2" v-scope="El({ x: (i - 1) * 210, y: (i - 1) * 210 })" class="rect" @vue:mounted="mounted($el)"
+      :style="style"
+      @click="onClick" @mousedown="onMouseDown($event, $el)"
+    >
+    </div>
+  </div>
+  <script src="https://unpkg.com/petite-vue"></script>
+  <script src="https://unpkg.com/randomcolor"></script>
+  <script src="https://unpkg.com/lodash"></script>
+  
+  <script>
+    const toast = (msg, option) => siiimpleToast.setOptions({ position: 'top|right' }).message(msg, { ...option })
+    const { pick, flow } = _
+    const { createApp, reactive } = PetiteVue
+    const store = reactive({
+      colors: randomColor({
+        count: 100,
+        luminosity: 'light',
+        hue: 'random',
+      }),
+      appStyle: {
+        // position: 'relative'
+        position: 'absolute',
+        overflow: 'hidden',
+        width: '100%',
+        height: '100%',
+      },
+      elements: []
+    })
+
+    const movement = reactive({
+      dragging: false,
+      x: 0,
+      y: 0,
+      gapX: 0,
+      gapY: 0,
+      beforeX: 0,
+      beforeY: 0,
+    })
+    createApp({
+      message: 'hello',
+      mounted () {
+        console.log('mounted')
+      },
+      App () {
+        return {
+          store
+        }
+      },
+      El (initData) {
+        const style = reactive({
+          backgroundColor: store.colors.pop(),
+          position: 'absolute',
+          cursor: 'grab',
+          top: '',
+          left: '',
+          opacity: '',
+        })
+        const getOverlappedEl = ($el, $rect) => {
+          const rect = $rect ?? $el.getBoundingClientRect()
+
+          return store.elements.filter(el => el !== $el).filter(el => {
+            const elRect = el.getBoundingClientRect()
+            return !(
+              rect.top > elRect.bottom ||
+              rect.right < elRect.left ||
+              rect.bottom < elRect.top ||
+              rect.left > elRect.right
+            )
+          })
+        }
+        const onDrag = ($el) => (e) => {
+          e.preventDefault()
+          style.cursor = 'grabbing'
+          // style.position = 'absolute'
+          movement.x = e.x
+          movement.y = e.y
+          style.top = `${movement.y - movement.gapY}px`
+          style.left = `${movement.x - movement.gapX}px`
+
+          // console.log('getOverlappedEl', getOverlappedEl($el))
+          const overlappedEl = getOverlappedEl($el)
+          // const overlappedEl = getOverlappedEl($el, { left: e.x - 20, right: e.x + 20, top: e.y - 20, bottom: e.y + 20 })
+          if (overlappedEl.length) {
+            style.opacity = 0.5
+          } else {
+            style.opacity = ''
+          }
+        }
+        const onDragEnd = ($el) => (e) => {
+          e.preventDefault()
+          const overlappedEl = getOverlappedEl($el)
+
+          if (overlappedEl.length) {
+            toast('그 위치에 둘 수 없어요')
+            style.top = `${movement.beforeY}px`
+            style.left = `${movement.beforeX}px`
+          } else {
+            movement.x = e.x
+            movement.y = e.y
+            style.top = `${movement.y - movement.gapY}px`
+            style.left = `${movement.x - movement.gapX}px`
+          }
+
+          style.opacity = ''
+          movement.x = 0
+          movement.y = 0
+          movement.dragging = false
+          // document.removeEventListener('mousemove', onDrag)
+          // document.removeEventListener('mouseup', onDragEnd)
+          document.onmousemove = null
+          document.onmouseup = null
+          style.cursor = 'grab'
+          // style.position = 'relative'
+        }
+        return {
+          movement,
+          style,
+          mounted($el) {
+            // console.log('El() mounted')
+            store.elements = store.elements.concat($el)
+            console.log('elements', store.elements)
+            style.backgroundColor = store.colors.pop()
+
+            // const rect = $el.getClientRects()?.[0];
+            if (initData?.x) style.left = `${initData.x}px` 
+            if (initData?.y) style.top = `${initData.y}px` 
+            // style.top = `${rect.top ?? 0}px`
+            // style.left = `${rect.left ?? 0}px`
+          },
+          onClick (e) {
+            // console.log('onClick', e)
+          },
+          onMouseDown (e, $el) {
+            e.preventDefault()
+            style.cursor = 'grabbing'
+            // style.position = 'absolute'
+
+            // const offset = flow(
+            //   ({ offsetTop: top, offsetLeft: left, offsetHeight: height, offsetWidth: width }) => ({ top, left, height, width })
+            // )($el)
+            // style.x = 
+
+            // console.log('mouse', pick(e, ['x', 'y']))
+            const rect = $el.getClientRects()?.[0];
+            // console.log('div', rect)
+            Object.assign(movement, {
+              dragging: false,
+              x: 0,
+              y: 0,
+              gapX: 0,
+              gapY: 0,
+              beforeX: 0,
+              beforeY: 0,
+            })
+            movement.dragging = true
+            movement.x = e.x
+            movement.y = e.y
+            movement.gapX = e.x - rect.x
+            movement.gapY = e.y - rect.y
+            movement.beforeX = e.x - movement.gapX
+            movement.beforeY = e.y - movement.gapY
+            // store.appStyle.position = 'absolute'
+            document.onmousemove = onDrag($el)
+            document.onmouseup = onDragEnd($el)
+          },
+          // onMouseUp (e, $el) {
+          //   // console.log('onMouseUp', e);
+          //   movement.afterX = e.x
+          //   movement.afterY = e.y
+          //   // store.appStyle.position = 'relative'
+          // },
+          // onDragStart(e) {
+          //   console.log('onDragStart', e)
+          // },
+          // onDragEnd(e) {
+          //   console.log('onDragEnd', e)
+          // },
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+
+</html>
